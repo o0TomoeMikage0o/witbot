@@ -34,8 +34,9 @@ namespace WitBotTest
                 {
                     var city = ((JValue)message.entities["location"][0].value).Value.ToString();
                     var cityLocation = GetCityLocation(city);
+                    //var cityLocation = new Tuple<double, double>(49.2320162, 28.467975);
                     var temperature = GetWeatherFromLocation(cityLocation);
-                    reply_string = string.Format($" Temperature in {city.ToString()} is {temperature.ToString()} degrees.");
+                    reply_string = string.Format($" Temperature in {temperature.Item1} is {temperature.Item2.ToString()} degrees. Minimum is {temperature.Item3.ToString()} and maximum is {temperature.Item4.ToString()}");
                 }
                 else if (messageType == "greetings")
                 {
@@ -79,19 +80,24 @@ namespace WitBotTest
             return new Tuple<double, double>(lat, lon);
         }
 
-        private static Double GetWeatherFromLocation(Tuple<double, double> location) {
+        private static Tuple<string, double, double, double> GetWeatherFromLocation(Tuple<double, double> location) {
 
-            var reqestUrl = string.Format("http://api.openweathermap.org/data/2.5/weather?lat={0}&lon={1}&units=metric&APPID=7eac9d42bc68621183847bb4846d3bb3", location.Item1, location.Item2);
+            //var reqestUrl = string.Format("http://api.openweathermap.org/data/2.5/weather?lat={0}&lon={1}&units=metric&APPID=7eac9d42bc68621183847bb4846d3bb3", location.Item1, location.Item2);
+            var reqestUrl = string.Format("http://api.openweathermap.org/data/2.5/forecast?lat={0}&lon={1}&units=metric&cnt=3&APPID=7eac9d42bc68621183847bb4846d3bb3", location.Item1, location.Item2);
 
             WebClient client = new WebClient { Encoding = Encoding.UTF8 };
-
             string reply = client.DownloadString(reqestUrl);
-
             var json = JsonConvert.DeserializeObject(reply);
 
-            var temp = Math.Round(((JObject)json)["main"]["temp"].Value<double>());
+            var temperature = ((JObject)json)["list"];
+            var cityName = ((JObject)json)["city"]["name"].Value<string>();
+            var currentTemp = Math.Round(temperature[0]["main"]["temp"].Value<double>());
+            var minTemp = Math.Round(temperature[0]["main"]["temp_min"].Value<double>());
+            var maxTemp = Math.Round(temperature[0]["main"]["temp_max"].Value<double>());
 
-            return temp;
+            //var currentTemp = JsonConvert.DeserializeObject < "list" > (json);
+
+            return new Tuple<string, double, double, double>(cityName, currentTemp, minTemp, maxTemp);
         }
 
         private Activity HandleSystemMessage(Activity message)
