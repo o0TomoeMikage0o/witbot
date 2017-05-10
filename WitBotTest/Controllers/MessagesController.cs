@@ -9,6 +9,7 @@ using com.valgut.libs.bots.Wit.Models;
 using Newtonsoft.Json.Linq;
 using System;
 using System.Text;
+using System.Collections.Generic;
 using Newtonsoft.Json;
 
 namespace WitBotTest
@@ -26,7 +27,7 @@ namespace WitBotTest
             {
                 ConnectorClient connector = new ConnectorClient(new Uri(activity.ServiceUrl));
 
-                var reply_string = " ";
+                StringBuilder reply_string = new StringBuilder();
                 WitClient client = new WitClient("WLQNG6NO3EZGHEI7S7TCL5PJH535Z6NW");
                 Message message = client.GetMessage(activity.Text);
                 var messageType = ((JValue)message.entities["intent"][0].value).Value.ToString();
@@ -35,20 +36,39 @@ namespace WitBotTest
                     var city = ((JValue)message.entities["location"][0].value).Value.ToString();
                     var cityLocation = GetCityLocation(city);
                     //var cityLocation = new Tuple<double, double>(49.2320162, 28.467975);
-                    var temperature = GetWeatherFromLocation(cityLocation);
-                    reply_string = string.Format($" Temperature in {temperature.Item1} is {temperature.Item2.ToString()} degrees. Minimum is {temperature.Item3.ToString()} and maximum is {temperature.Item4.ToString()}");
+                    var duration = " ";
+                    DateTime myDate = new DateTime();
+                    try
+                    {
+                        duration = ((JValue)message.entities["datetime"][0].value).Value.ToString();
+                        myDate = DateTime.Parse(duration);
+                    }
+                    catch
+                    {}
+                    
+                    var weather = GetWeatherFromLocation(cityLocation);
+
+                    var cityName = weather.Item1;
+                    reply_string.AppendLine($" Weather in {weather.Item1} for {duration} days. \r\n");
+
+                    var forecast = weather.Item2;
+                    foreach (var dayilyForecast in forecast)
+                    {
+                        reply_string.AppendLine($"{dayilyForecast.Item1.ToShortDateString()} Daily temperature is {dayilyForecast.Item2} degrees. \r\n");
+                        reply_string.AppendLine($"Minimum temperature is {dayilyForecast.Item3} and maximum is {dayilyForecast.Item4}. \r\n");
+                    }
+                    
                 }
                 else if (messageType == "greetings")
                 {
-                    reply_string = "Hello!";
+                    reply_string.AppendLine("Hello!");
                 }
                 else
                 {
-                    reply_string = "None.";
+                    reply_string.AppendLine("There is no simmilar command.");
                 }
                 Activity reply = activity.CreateReply($"{reply_string}");
                 await connector.Conversations.ReplyToActivityAsync(reply);
-                //await Conversation.SendAsync(activity, () => new Dialogs.RootDialog());
 
             }
             else
@@ -64,9 +84,7 @@ namespace WitBotTest
             var url = string.Format("http://nominatim.openstreetmap.org/search.php?q={0}&format=json&limit=1", cityName);
 
             WebClient client = new WebClient { Encoding = Encoding.UTF8 };
-
             string reply = client.DownloadString(url);
-
             var json = (JArray)JsonConvert.DeserializeObject(reply);
 
             if (json.Count == 0)
@@ -74,30 +92,35 @@ namespace WitBotTest
                 throw new Exception("City not found.");
             }
 
-            var lat = ((JObject)json[0])["lat"].Value<double>();
-            var lon = ((JObject)json[0])["lon"].Value<double>();
+            var location = (JObject)json[0];
+            var lat = (double) location["lat"];
+            var lon = (double) location["lon"];
 
             return new Tuple<double, double>(lat, lon);
         }
 
-        private static Tuple<string, double, double, double> GetWeatherFromLocation(Tuple<double, double> location) {
+        private static Tuple<string, List<Tuple<DateTime, double, double, double>>> GetWeatherFromLocation(Tuple<double, double> location, int days = 3) {
 
             //var reqestUrl = string.Format("http://api.openweathermap.org/data/2.5/weather?lat={0}&lon={1}&units=metric&APPID=7eac9d42bc68621183847bb4846d3bb3", location.Item1, location.Item2);
-            var reqestUrl = string.Format("http://api.openweathermap.org/data/2.5/forecast?lat={0}&lon={1}&units=metric&cnt=3&APPID=7eac9d42bc68621183847bb4846d3bb3", location.Item1, location.Item2);
+            var reqestUrl = string.Format("http://api.openweathermap.org/data/2.5/forecast/daily?lat={0}&lon={1}&units=metric&cnt={2}&APPID=7eac9d42bc68621183847bb4846d3bb3", location.Item1, location.Item2, days);
 
             WebClient client = new WebClient { Encoding = Encoding.UTF8 };
             string reply = client.DownloadString(reqestUrl);
-            var json = JsonConvert.DeserializeObject(reply);
+            var json = (JObject) JsonConvert.DeserializeObject(reply);
+            var cityName = (string)json["city"]["name"];
+            var forecastList = json["list"];
+            var forecast = new List<Tuple<DateTime, double, double, double>>();
+            foreach (var forecastListItem in forecastList)
+            {
+                DateTime date = new DateTime(1970, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc).AddSeconds((int)forecastListItem["dt"]);
+                var currentTemp = Math.Round((double)forecastListItem["temp"]["day"]);
+                var minTemp = Math.Round((double)forecastListItem["temp"]["min"]);
+                var maxTemp = Math.Round((double)forecastListItem["temp"]["max"]);
+                var dailyForecast = new Tuple<DateTime, double, double, double>(date, currentTemp, minTemp, maxTemp);
+                forecast.Add(dailyForecast);
+            }
 
-            var temperature = ((JObject)json)["list"];
-            var cityName = ((JObject)json)["city"]["name"].Value<string>();
-            var currentTemp = Math.Round(temperature[0]["main"]["temp"].Value<double>());
-            var minTemp = Math.Round(temperature[0]["main"]["temp_min"].Value<double>());
-            var maxTemp = Math.Round(temperature[0]["main"]["temp_max"].Value<double>());
-
-            //var currentTemp = JsonConvert.DeserializeObject < "list" > (json);
-
-            return new Tuple<string, double, double, double>(cityName, currentTemp, minTemp, maxTemp);
+            return new Tuple<string, List<Tuple<DateTime, double, double, double>>> (cityName, forecast);
         }
 
         private Activity HandleSystemMessage(Activity message)
