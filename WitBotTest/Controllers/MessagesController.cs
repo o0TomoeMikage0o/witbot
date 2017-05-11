@@ -4,13 +4,12 @@ using System.Threading.Tasks;
 using System.Web.Http;
 using Microsoft.Bot.Builder.Dialogs;
 using Microsoft.Bot.Connector;
-using com.valgut.libs.bots.Wit;
-using com.valgut.libs.bots.Wit.Models;
 using Newtonsoft.Json.Linq;
 using System;
 using System.Text;
 using System.Collections.Generic;
 using Newtonsoft.Json;
+using WitBotTest.WitBotAPI;
 
 namespace WitBotTest
 {
@@ -28,25 +27,33 @@ namespace WitBotTest
                 ConnectorClient connector = new ConnectorClient(new Uri(activity.ServiceUrl));
 
                 StringBuilder reply_string = new StringBuilder();
-                WitClient client = new WitClient("WLQNG6NO3EZGHEI7S7TCL5PJH535Z6NW");
-                Message message = client.GetMessage(activity.Text);
-                var messageType = ((JValue)message.entities["intent"][0].value).Value.ToString();
+                var WitBotMessage = WitBot.MakeRequest(activity.Text);
+
+                string messageType;
+                WitBotMessage.TryGetValue("intent_value", out messageType);
                 if (messageType == "weather")
                 {
-                    var city = ((JValue)message.entities["location"][0].value).Value.ToString();
+                    string city;
+                    WitBotMessage.TryGetValue("location_value", out city);
+
                     var cityLocation = GetCityLocation(city);
-                    //var cityLocation = new Tuple<double, double>(49.2320162, 28.467975);
-                    var duration = " ";
-                    DateTime myDate = new DateTime();
+                    var duration = "1";
                     try
                     {
-                        duration = ((JValue)message.entities["datetime"][0].value).Value.ToString();
-                        myDate = DateTime.Parse(duration);
+                        WitBotMessage.TryGetValue("duration_value", out duration);
+                        string durationUnit;
+                        WitBotMessage.TryGetValue("duration_unit", out durationUnit);
+                        if ("week" == durationUnit)
+                        {
+                            int tempDuration = int.Parse(duration);
+                            tempDuration *= 7;
+                            duration = tempDuration.ToString();
+                        }
                     }
                     catch
                     {}
                     
-                    var weather = GetWeatherFromLocation(cityLocation);
+                    var weather = GetWeatherFromLocation(cityLocation, duration);
 
                     var cityName = weather.Item1;
                     reply_string.AppendLine($" Weather in {weather.Item1} for {duration} days. \r\n");
@@ -99,9 +106,8 @@ namespace WitBotTest
             return new Tuple<double, double>(lat, lon);
         }
 
-        private static Tuple<string, List<Tuple<DateTime, double, double, double>>> GetWeatherFromLocation(Tuple<double, double> location, int days = 3) {
+        private static Tuple<string, List<Tuple<DateTime, double, double, double>>> GetWeatherFromLocation(Tuple<double, double> location, string days) {
 
-            //var reqestUrl = string.Format("http://api.openweathermap.org/data/2.5/weather?lat={0}&lon={1}&units=metric&APPID=7eac9d42bc68621183847bb4846d3bb3", location.Item1, location.Item2);
             var reqestUrl = string.Format("http://api.openweathermap.org/data/2.5/forecast/daily?lat={0}&lon={1}&units=metric&cnt={2}&APPID=7eac9d42bc68621183847bb4846d3bb3", location.Item1, location.Item2, days);
 
             WebClient client = new WebClient { Encoding = Encoding.UTF8 };
