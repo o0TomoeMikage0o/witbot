@@ -2,15 +2,12 @@
 using System.Net.Http;
 using System.Threading.Tasks;
 using System.Web.Http;
-using Microsoft.Bot.Builder.Dialogs;
 using Microsoft.Bot.Connector;
-using Newtonsoft.Json.Linq;
 using System;
 using System.Text;
-using System.Collections.Generic;
-using Newtonsoft.Json;
 using WitBotTest.WitBotAPI;
 using WitBotTest.Weather;
+using WitBotTest.Distance;
 
 namespace WitBotTest
 {
@@ -30,13 +27,17 @@ namespace WitBotTest
                 StringBuilder reply_string = new StringBuilder();
                 var WitBotMessage = WitBot.MakeRequest(activity.Text);
 
-                string messageType;
-                WitBotMessage.TryGetValue("intent_value", out messageType);
-                switch (messageType)
+                string messageIntent;
+                WitBotMessage.TryGetValue("intent_value", out messageIntent);
+                switch (messageIntent)
                 {
                     case "weather":
 
                         reply_string.AppendLine(WitBotWeather.GetWeather(WitBotMessage));
+                        break;
+
+                    case "distance":
+                        reply_string.AppendLine(WitBotDistance.GetDistance(WitBotMessage));
                         break;
 
                     case "greetings":

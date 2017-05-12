@@ -29,19 +29,19 @@ namespace WitBotTest.WitBotAPI
             Dictionary<string, string> resultDict = new Dictionary<string, string>();
             resultDict.Add("msg_id", (string)json["msg_id"]);
             resultDict.Add("text", (string)json["_text"]);
-            //resultDict.Add("entities", );
             var entities = json["entities"].Value<JObject>();
             foreach (var entity in entities)
             {
-                var key = entity.Key;
-                foreach (var item in (entity.Value)[0].Value<JObject>())
+                for (var i = 0; i < ((JArray)(entity.Value)).Count; i++)
                 {
-                    var temp = item.Key;
-                    resultDict.Add(entity.Key + "_" + item.Key, item.Value.ToString());
+                    var appendNum = "";
+                    if (i > 0) appendNum = (i + 1).ToString();
+                    foreach (var item in (entity.Value)[i].Value<JObject>())
+                    {   
+                        resultDict.Add(entity.Key + "_" + item.Key + appendNum, item.Value.ToString());
+                    }
                 }
-
             }
-
             return resultDict;        
         }
     }
