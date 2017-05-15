@@ -2,14 +2,12 @@
 using System.Net.Http;
 using System.Threading.Tasks;
 using System.Web.Http;
-using Microsoft.Bot.Builder.Dialogs;
 using Microsoft.Bot.Connector;
-using com.valgut.libs.bots.Wit;
-using com.valgut.libs.bots.Wit.Models;
-using Newtonsoft.Json.Linq;
 using System;
 using System.Text;
-using Newtonsoft.Json;
+using WitBotTest.WitBotAPI;
+using WitBotTest.Weather;
+using WitBotTest.Distance;
 
 namespace WitBotTest
 {
@@ -26,29 +24,38 @@ namespace WitBotTest
             {
                 ConnectorClient connector = new ConnectorClient(new Uri(activity.ServiceUrl));
 
-                var reply_string = " ";
-                WitClient client = new WitClient("WLQNG6NO3EZGHEI7S7TCL5PJH535Z6NW");
-                Message message = client.GetMessage(activity.Text);
-                var messageType = ((JValue)message.entities["intent"][0].value).Value.ToString();
-                if (messageType == "weather")
+                StringBuilder reply_string = new StringBuilder();
+                var WitBotMessage = WitBot.MakeRequest(activity.Text);
+
+                string messageIntent;
+                WitBotMessage.TryGetValue("intent_value", out messageIntent);
+                switch (messageIntent)
                 {
-                    var city = ((JValue)message.entities["location"][0].value).Value.ToString();
-                    var cityLocation = GetCityLocation(city);
-                    //var cityLocation = new Tuple<double, double>(49.2320162, 28.467975);
-                    var temperature = GetWeatherFromLocation(cityLocation);
-                    reply_string = string.Format($" Temperature in {temperature.Item1} is {temperature.Item2.ToString()} degrees. Minimum is {temperature.Item3.ToString()} and maximum is {temperature.Item4.ToString()}");
+                    case "weather":
+
+                        reply_string.AppendLine(WitBotWeather.GetWeather(WitBotMessage));
+                        break;
+
+                    case "distance":
+                        reply_string.AppendLine(WitBotDistance.GetDistance(WitBotMessage));
+                        break;
+
+                    case "some pics":
+                        reply_string.AppendLine($"![image]({GetSomethingFunny()})");
+                        break;
+
+                    case "greetings":
+                        reply_string.AppendLine("Hello");
+                        break;
+
+                    default:
+                        reply_string.AppendLine("There is no simmilar command.");
+                        break;
+
                 }
-                else if (messageType == "greetings")
-                {
-                    reply_string = "Hello!";
-                }
-                else
-                {
-                    reply_string = "None.";
-                }
+
                 Activity reply = activity.CreateReply($"{reply_string}");
                 await connector.Conversations.ReplyToActivityAsync(reply);
-                //await Conversation.SendAsync(activity, () => new Dialogs.RootDialog());
 
             }
             else
@@ -59,47 +66,17 @@ namespace WitBotTest
             return response;
         }
 
-        private static Tuple<double, double> GetCityLocation(string cityName)
+        private static string GetSomethingFunny()
         {
-            var url = string.Format("http://nominatim.openstreetmap.org/search.php?q={0}&format=json&limit=1", cityName);
-
-            WebClient client = new WebClient { Encoding = Encoding.UTF8 };
-
+            var url = "https://9gag.com/funny/fresh";
+            WebClient client = new WebClient {};
             string reply = client.DownloadString(url);
-
-            var json = (JArray)JsonConvert.DeserializeObject(reply);
-
-            if (json.Count == 0)
-            {
-                throw new Exception("City not found.");
-            }
-
-            var lat = ((JObject)json[0])["lat"].Value<double>();
-            var lon = ((JObject)json[0])["lon"].Value<double>();
-
-            return new Tuple<double, double>(lat, lon);
+            var blocks = reply.Split(new string[] { "<img class=\"badge-item-img\" src=\"" }, StringSplitOptions.None);
+            var i = new Random().Next(1, 10);
+            var element = blocks[i].Split(new string[] { "\" alt" }, StringSplitOptions.None);
+            return element[0];
         }
-
-        private static Tuple<string, double, double, double> GetWeatherFromLocation(Tuple<double, double> location) {
-
-            //var reqestUrl = string.Format("http://api.openweathermap.org/data/2.5/weather?lat={0}&lon={1}&units=metric&APPID=7eac9d42bc68621183847bb4846d3bb3", location.Item1, location.Item2);
-            var reqestUrl = string.Format("http://api.openweathermap.org/data/2.5/forecast?lat={0}&lon={1}&units=metric&cnt=3&APPID=7eac9d42bc68621183847bb4846d3bb3", location.Item1, location.Item2);
-
-            WebClient client = new WebClient { Encoding = Encoding.UTF8 };
-            string reply = client.DownloadString(reqestUrl);
-            var json = JsonConvert.DeserializeObject(reply);
-
-            var temperature = ((JObject)json)["list"];
-            var cityName = ((JObject)json)["city"]["name"].Value<string>();
-            var currentTemp = Math.Round(temperature[0]["main"]["temp"].Value<double>());
-            var minTemp = Math.Round(temperature[0]["main"]["temp_min"].Value<double>());
-            var maxTemp = Math.Round(temperature[0]["main"]["temp_max"].Value<double>());
-
-            //var currentTemp = JsonConvert.DeserializeObject < "list" > (json);
-
-            return new Tuple<string, double, double, double>(cityName, currentTemp, minTemp, maxTemp);
-        }
-
+        
         private Activity HandleSystemMessage(Activity message)
         {
             if (message.Type == ActivityTypes.DeleteUserData)
