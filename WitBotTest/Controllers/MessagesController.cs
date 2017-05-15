@@ -40,10 +40,12 @@ namespace WitBotTest
                         reply_string.AppendLine(WitBotDistance.GetDistance(WitBotMessage));
                         break;
 
-                    case "greetings":
+                    case "some pics":
+                        reply_string.AppendLine($"![image]({GetSomethingFunny()})");
+                        break;
 
-                        GetSomethingFunny();
-                        reply_string.AppendLine("Hello!");
+                    case "greetings":
+                        reply_string.AppendLine("Hello");
                         break;
 
                     default:
@@ -66,12 +68,13 @@ namespace WitBotTest
 
         private static string GetSomethingFunny()
         {
-            var url = "http://bashorg.org/best";
+            var url = "https://9gag.com/funny/fresh";
             WebClient client = new WebClient {};
             string reply = client.DownloadString(url);
-            var blocks = reply.Split(new string[] { "<div class=\"quote\">" }, StringSplitOptions.None);
-            
-            return " ";
+            var blocks = reply.Split(new string[] { "<img class=\"badge-item-img\" src=\"" }, StringSplitOptions.None);
+            var i = new Random().Next(1, 10);
+            var element = blocks[i].Split(new string[] { "\" alt" }, StringSplitOptions.None);
+            return element[0];
         }
         
         private Activity HandleSystemMessage(Activity message)
