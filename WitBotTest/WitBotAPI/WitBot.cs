@@ -42,7 +42,8 @@ namespace WitBotTest.WitBotAPI
                     }
                 }
             }
-            return resultDict;        
+            return resultDict;
+            
         }
     }
 }
